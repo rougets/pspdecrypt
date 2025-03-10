@@ -5,6 +5,8 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
+#include <openssl/provider.h>
+#include <openssl/evp.h>
 #include <openssl/des.h>
 
 extern "C" {
@@ -392,9 +394,24 @@ TABLE_KEYS table_keys[] =
 
 static void DecryptT(u8 *buf, int size, int mode)
 {
+    OSSL_PROVIDER *legacy = OSSL_PROVIDER_load(NULL, "legacy");
+    EVP_CIPHER_CTX *ctx = EVP_CIPHER_CTX_new();
+    EVP_CIPHER *des = EVP_CIPHER_fetch(NULL, "DES-CBC", NULL);
+    EVP_DecryptInit(ctx, des, table_keys[mode].key, table_keys[mode].iv);
+    int result;
+    int output = 0;
+    int decrypted_size = 0;
+    result = EVP_DecryptUpdate(ctx, buf, &output, buf, size);
+    EVP_DecryptFinal(ctx, buf, &output);
+    // TODO Replace deprecated declarations
+    /*
     DES_key_schedule schedule;
     DES_set_key_unchecked((DES_cblock*)&table_keys[mode].key, &schedule);
     DES_cbc_encrypt(buf, buf, size, &schedule, (DES_cblock*)&table_keys[mode].iv, DES_DECRYPT);
+    */
+    EVP_CIPHER_free(des);
+    EVP_CIPHER_CTX_free(ctx);
+    OSSL_PROVIDER_unload(legacy);
 }
 
 int pspDecryptTable(u8 *buf1, u8 *buf2, int size, int psarVersion, int mode)
